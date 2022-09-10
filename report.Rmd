@@ -34,7 +34,16 @@ df %>% pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>%
   geom_boxplot() 
 ```
 
+We can see from the box plot that the variance of gini index, signifies by the interquartile range, between states was higher for the first 2 periods, 1918 and 1928, and then gradually reduced, reaching lowest variance in 1968 but then started to slightly increase again over the next periods. We can see that quite a few periods there are outliers such as in the years of 1918, 1928, 1938, 1958, 1968, 1988 and 1998. However, only the year 1938 has an extreme value, which is when the outliers is 3*IQR greater than the 1st interquartile. We can see all the outliers below
 
+```{r}
+boxplot.stats(df$`1938`)$out -> outliers
+df[which(df$`1938` %in% c(outliers)),]
+```
+
+The extreme value for the year 1938 is Delaware, with Gini index at 0.674. From the box plot we can also see that the largest Gini index across the whole data set comes from the year 1928, and from the table above, we can see that the point is also Delaware, with Gini at 0.747, this means that during the period 1928 to 1938, the state of Delaware had very wide income gap.
+
+In terms of the distribution of gini index across the years, we can see that the data is quite normally distributed. We can see that the only period which is visibly positively skewed is the year 1998, where the mean is very close to the 1st quartile.
 
 # Principle Component Analysis
 
