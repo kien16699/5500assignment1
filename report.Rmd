@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
+# Data Description
+
+Inequality data has eleven variables, representing 52 different states of the U.S. on the average income inequality. This panel data set variables are the Gini index from 1918 to 2018, recorded every ten years for a total of eleven Gini index variables. In this report, the use of principle components analysis, cluster analysis, and multidimensional scaling will help investigate how inequality has evolved over time for different states in the U.S.
+
 # Preliminary Analysis
 
 ```{r}
