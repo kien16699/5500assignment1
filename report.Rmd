@@ -51,6 +51,115 @@ In terms of the distribution of gini index across the years, we can see that the
 
 # Principle Component Analysis
 
+### Handling of missing value
+```{r}
+# data prepare
+df <- read.csv("Inequality_data.csv")
+df$X1968[which(df$X1968 == 1000)] = NA
+
+df_tidy <- df %>% 
+  column_to_rownames('State')
+```
+
+```{r}
+# mice: pmm
+# the default assumption of pmm is missing at random
+# missing at random means that the likelihood of missing a value depends on other variables, variables are correlated.
+# using linear regression to predict missing, PCA also 
+
+imputedData <- mice(df_tidy, m=5, maxit = 50, method = 'pmm', seed = 500)
+# summary(imputedData)
+completeData <- complete(imputedData,2)
+
+# check the output of reassigning NA
+mean(completeData$X1918)
+mean(df_tidy$X1918, na.rm = T)
+
+completeData %>% 
+  rownames_to_column(var = "state") %>% 
+  pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
+  ggplot(aes(x = year, y = gini)) +
+  geom_boxplot() 
+
+df %>% 
+  pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
+  filter(gini != 1000) %>% 
+  ggplot(aes(x = year, y = gini)) +
+  geom_boxplot() 
+```
+
+```{r}
+# Amelia
+# assumption: Multivariate Normal Distribution
+# use bootstrap to simulate by independent variable
+
+set.seed(444) # not work
+amelia_fit <- amelia(df_tidy, m=5, parallel = "multicore", startvals = 1)
+df_amelia <- amelia_fit$imputations[[1]]
+```
+
+```{r}
+# mean
+df_mean <- data.frame(apply(df_tidy, 2, function(x){
+    x[is.na(x)] = mean(x, na.rm = T); x}))
+```
+
+### PCA
+
+```{r}
+# completeData for MICE, df_amelia for Amelia, df_mean for mean
+completeData %>% 
+  prcomp() -> pcaout
+
+summary(pcaout) 
+```
+
+```{r}
+# loadings
+as_tibble(pcaout$rotation) %>% 
+  mutate(indx = 1:nrow(pcaout$rotation), 
+         ymin= rep(0, nrow(pcaout$rotation))) %>% 
+  ggplot() + 
+    geom_point(aes(x=rownames(pcaout$rotation), y=PC1)) +
+    geom_errorbar(aes(x=rownames(pcaout$rotation),
+                      ymin=ymin, ymax=PC1), width=0) + 
+    geom_hline(yintercept=
+                 c(-1/sqrt(nrow(pcaout$rotation)),
+                   1/sqrt(nrow(pcaout$rotation))),
+               colour="red") +
+    theme(axis.text.x = element_text(angle = 90, 
+                                     vjust = 0.5, 
+                                     hjust=1)) +
+  xlab("Predictors") + ylab("PC1") 
+
+as_tibble(pcaout$rotation) %>% 
+  mutate(indx = 1:nrow(pcaout$rotation), 
+         ymin= rep(0, nrow(pcaout$rotation))) %>% 
+  ggplot() + 
+    geom_point(aes(x=rownames(pcaout$rotation), y=PC2)) +
+    geom_errorbar(aes(x=rownames(pcaout$rotation),
+                      ymin=ymin, ymax=PC2), width=0) + 
+    geom_hline(yintercept=
+                 c(-1/sqrt(nrow(pcaout$rotation)),
+                   1/sqrt(nrow(pcaout$rotation))),
+               colour="red") +
+    theme(axis.text.x = element_text(angle = 90, 
+                                     vjust = 0.5, 
+                                     hjust=1)) +
+  xlab("Predictors") + ylab("PC2") 
+```
+
+```{r}
+# number of PCs
+screeplot(pcaout,type = 'l')  
+
+# correlation
+biplot(pcaout,scale=0, cex=0.7)
+
+# distance
+biplot(pcaout, cex=0.7)
+```
+
 # Multidimensional Scaling
 
 # Cluster Analysis
