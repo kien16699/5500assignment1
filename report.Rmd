@@ -162,6 +162,40 @@ biplot(pcaout, cex=0.7)
 
 # Multidimensional Scaling
 
+```{r}
+library(gghighlight)
+dd <- df %>%
+  dist
+
+df %>%
+  pull(State) -> attributes(dd)$Labels
+
+cmds <- cmdscale(dd)
+
+cmds %>%
+  as_tibble(rownames = "State") %>%
+  ggplot(aes(x = V1, y = V2, label = State)) +
+  geom_text() +
+  gghighlight(State == "Alaska")
+```
+
+```{r}
+dd <- df_amelia %>%
+  dist
+
+df_amelia %>%
+  pull(State) -> attributes(dd)$Labels
+
+cmds <- cmdscale(dd)
+
+cmds %>%
+  as_tibble(rownames = "State") %>%
+  ggplot(aes(x = V1, y = V2, label = State)) +
+  geom_text()
+```
+
+
+
 # Cluster Analysis
 
 
