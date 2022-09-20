@@ -21,6 +21,7 @@ library(MASS)
 library(patchwork)
 library(mice)
 library(Amelia)
+library(gghighlight)
 ```
 
 
@@ -87,13 +88,15 @@ p_complete <- completeData %>%
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot() + labs(x = "")
+  geom_boxplot() + 
+  labs(x = "", title = "MICE dataset")
 
 p_og <- df %>% 
   pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
   filter(gini != 1000) %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot() 
+  geom_boxplot()  +
+  labs(title = "Original dataset")
 
 p_complete/p_og
 ```
@@ -115,7 +118,8 @@ p_amelia <- df_amelia %>%
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot() + labs(x = "")
+  geom_boxplot() + 
+  labs(x = "", title = "Amelia dataset")
 
 p_complete/p_og
 ```
@@ -202,37 +206,31 @@ By selecting two principal components we are able to visualize the data using a 
 # Multidimensional Scaling
 
 ```{r}
-library(gghighlight)
-dd <- df %>%
-  dist
+dd <- completeData %>%
+  dist(method = "euclidean")
 
-df %>%
-  pull(State) -> attributes(dd)$Labels
+completeData %>%
+  rownames_to_column() %>%
+  pull(rowname) -> attributes(dd)$Labels
 
-cmds <- cmdscale(dd)
+cmds <- cmdscale(dd, eig = T)
 
-cmds %>%
+cmds_point <- cmds$points
+
+cmds_point %>%
   as_tibble(rownames = "State") %>%
   ggplot(aes(x = V1, y = V2, label = State)) +
-  geom_text() +
-  gghighlight(State == "Alaska")
+  geom_text(size = 3) +
+  gghighlight(State %in% c("Delaware", "New York", "Florida"), unhighlighted_colour = "dark grey")
 ```
+
+Using the classical Multidimensional Scaling, it finds a low dimensional representation of the dataset by minimise strain. From the plot above, we can see the potential 3 outliers of the dataset; Delaware, New York, and Florida. This result is the same as what we have observed in the PCA, also the states the are closer together the closer they are, as this plot represent the similarity between states.
 
 ```{r}
-dd <- df_amelia %>%
-  dist
-
-df_amelia %>%
-  pull(State) -> attributes(dd)$Labels
-
-cmds <- cmdscale(dd)
-
-cmds %>%
-  as_tibble(rownames = "State") %>%
-  ggplot(aes(x = V1, y = V2, label = State)) +
-  geom_text()
+cmds$GOF
 ```
 
+The *GOF* tell us how good the fit are, the number are the same for both measures. It is because we use Euclidean distances this will always give positive eigenvalues, and since first measure use $|\lambda_i|$ and second measure use $max(0, \lambda_i)$. Therefore when using the Euclidean distance it will give the same results. With the goodness of fit measures are quite high, we can believe that the solution is an accurate representation.
 
 
 # Cluster Analysis
