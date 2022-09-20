@@ -224,13 +224,13 @@ cmds_point %>%
   gghighlight(State %in% c("Delaware", "New York", "Florida"), unhighlighted_colour = "dark grey")
 ```
 
-Using the classical Multidimensional Scaling, it finds a low dimensional representation of the dataset by minimise strain. From the plot above, we can see the potential 3 outliers of the dataset; Delaware, New York, and Florida. This result is the same as what we have observed in the PCA, also the states the are closer together the closer they are, as this plot represent the similarity between states.
+Using the classical Multidimensional Scaling, it finds a low dimensional representation of the dataset by minimizing strain. From the plot above, we can see the potential three outliers of the dataset; Delaware, New York, and Florida. This result is the same as what we have observed in the PCA. Also, the states that are closer together, the closer they are, as this plot represents the similarity between states.
 
 ```{r}
 cmds$GOF
 ```
 
-The *GOF* tell us how good the fit are, the number are the same for both measures. It is because we use Euclidean distances this will always give positive eigenvalues, and since first measure use $|\lambda_i|$ and second measure use $max(0, \lambda_i)$. Therefore when using the Euclidean distance it will give the same results. With the goodness of fit measures are quite high, we can believe that the solution is an accurate representation.
+The *GOF* tells us how good the fit is. The numbers are the same for both measures. It is because we use Euclidean distances, which will always give positive eigenvalues, and since the first measure use $|\lambda_i|$ and the second measure uses $max(0, \lambda_i)$. Therefore when using the Euclidean distance, it will give the same results. With the goodness of fit measures being quite high, we can believe that the solution is an accurate representation.
 
 
 # Cluster Analysis
