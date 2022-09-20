@@ -1,8 +1,10 @@
 ---
-title: "assignment1"
+title: "Assignment1"
 author: "Dimensio Reducto"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  pdf_document:
+    df_print: kable
 ---
 
 ```{r setup, include=FALSE}
@@ -11,14 +13,14 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 # Data Description
 
-Inequality data has eleven variables, representing 52 different states of the U.S. on the average income inequality. This panel data set variables are the Gini index from 1918 to 2018, recorded every ten years for a total of eleven Gini index variables. In this report, the use of principle components analysis, cluster analysis, and multidimensional scaling will help investigate how inequality has evolved over time for different states in the U.S.
+Inequality data has eleven variables, representing the average income inequality in the U.S. for 51 different states and an aggregate of these states. This panel data set variables are the Gini index from 1918 to 2018, recorded every ten years for a total of eleven Gini index variables. In this report, the use of principle components analysis, cluster analysis, and multidimensional scaling will help investigate how inequality has evolved over time for different states in the U.S.
 
 # Preliminary Analysis
 
 ```{r}
 library(tidyverse)
 library(MASS)
-library(patchwork)
+library(naniar)
 library(mice)
 library(Amelia)
 library(gghighlight)
@@ -29,11 +31,19 @@ library(gghighlight)
 df <- read_csv("Inequality_data.csv")
 ```
 
+### Overview of the raw data
+
+```{r}
+gg_miss_upset(df)
+```
+
+There are a few anomalies such as 2 NA values for all years from 1918 to 1958 with the exception of year 1948 having 20 NA values.
+
 ```{r}
 summary(df)
 ```
 
-There are a few anomalies such as 2 NA values for all years from 1918 to 1958 with the exception of year 1948 having 20 NA values. Additionally the highest Gini index for the year 1968 is 1000, which is definite a mistake considering the range of Gini index value is between 0 and 1.
+Additionally the highest Gini index for the year 1968 is 1000, which is definite a mistake considering the range of Gini index value is between 0 and 1.
 
 ```{r}
 df %>% pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
@@ -42,7 +52,7 @@ df %>% pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>%
   geom_boxplot()
 ```
 
-We can see from the box plot that the variance of gini index, signifies by the interquartile range, between states was higher for the first 2 periods, 1918 and 1928, and then gradually reduced, reaching lowest variance in 1968 but then started to slightly increase again over the next periods. We can see that quite a few periods there are outliers such as in the years of 1918, 1928, 1938, 1958, 1968, 1988 and 1998. However, only the year 1938 has an extreme value, which is when the outliers is 3*IQR greater than the 1st interquartile. We can see all the outliers below
+We can see from the box plot that the variance of gini index, signifies by the interquartile range, between states was higher for the first 2 periods, 1918 and 1928, and then gradually reduced, reaching lowest variance in 1968 but then started to slightly increase again over the next periods. We can see that quite a few periods there are outliers such as in the years of 1918, 1928, 1938, 1958, 1968, 1988 and 1998. However, only the year 1938 has an extreme value, which is when the outliers is 3*IQR greater than the 1st interquartile. We can see all the outliers below.
 
 ```{r}
 boxplot.stats(df$`1938`)$out -> outliers
@@ -51,82 +61,87 @@ df[which(df$`1938` %in% c(outliers)),]
 
 The extreme value for the year 1938 is Delaware, with Gini index at 0.674. From the box plot we can also see that the largest Gini index across the whole data set comes from the year 1928, and from the table above, we can see that the point is also Delaware, with Gini at 0.747, this means that during the period 1928 to 1938, the state of Delaware had very wide income gap.
 
-In terms of the distribution of gini index across the years, we can see that the data is quite normally distributed. We can see that the only period which is visibly positively skewed is the year 1998, where the mean is very close to the 1st quartile.
+In terms of the distribution of gini index across the years, we can see that the data is quite normally distributed. We can see that the only period which is visibly positively skewed is the year 1998, where the mean is very close to the 1st quantile.
 
-# Principle Component Analysis
+### Reassignment of missing values
 
-### Handling of missing value
 ```{r}
 # data prepare
-df <- read.csv("Inequality_data.csv")
-df$X1968[which(df$X1968 == 1000)] = NA
+df$`1968`[which(df$`1968` == 1000)] = NA
 
 df_tidy <- df %>% 
-  column_to_rownames('State')
+  mutate(State = recode(State, "United States" = "US",
+                        "District of Columbia" = "DC"))
+df_tidy$State <- ifelse(nchar(df_tidy$State) > 2,
+                        state.abb[match(df_tidy$State,state.name)],
+                        df_tidy$State)
+df_tidy <- column_to_rownames(df_tidy, 'State') 
+colnames(df_tidy) <- paste("X", colnames(df_tidy), sep = ".")
 ```
 
-As addressed by the previous analysis, there are a substantial number of missing values in the dataset. In this section, we have performed 3 different ways to handle those missing values. 
+The reason that the aggregate item United States is not removed is that we want to keep this as an observation for reassigning NA. At the same time, although the reason for missing data before 1958 like Alaska and Hawaii is that two states were only admitted into the union in 1959, in order to ensure the integrity of the data, we chose to predict and fill the NA by regression fitting rather than dropping them directly. Additionally, the highest gini index 1000 for the year 1968 is changed to NA firstly, then will perform 3 different ways to handle all missing values. 
+
+```{r, results='hide'}
+# pmm of mice
+imputedData <- mice(df_tidy, m=5, maxit = 50, method = 'pmm', seed = 500)
+completeData <- complete(imputedData,2)
+```
 
 First, we have used the MICE (Multiple Imputation by Chained Equations) algorithm. This is a robust, informative method of dealing with missing data in the dataset. The procedure imputes missing data in a dataset through an iterative series of predictive models. In each iteration, each specified variable in the dataset is imputed using the other variables in the dataset. These iterations should be run until it appears that convergence has been met. 
 
 ```{r}
-# mice: pmm
-# the default assumption of pmm is missing at random
-# missing at random means that the likelihood of missing a value depends on other variables, variables are correlated.
-# using linear regression to predict missing, PCA also 
+tibble(raw_1918 = mean(df_tidy$X.1918, na.rm = T),
+       mice_1918 = mean(completeData$X.1918)) 
+```
 
-imputedData <- mice(df_tidy, m=5, maxit = 50, method = 'pmm', seed = 500)
-# summary(imputedData)
-completeData <- complete(imputedData,2)
+After filling in the missing values with mice algorithm, we can see that the mean of the dataset actually hasn't changed much, this is because the procedure we have used is called predictive mean matching (PMM). 
 
-# check the output of reassigning NA
-mean(completeData$X1918)
-mean(df_tidy$X1918, na.rm = T)
-
-
+```{r}
 p_complete <- completeData %>% 
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot() + 
-  labs(x = "", title = "MICE dataset")
+  geom_boxplot() +
+  scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
+  theme(axis.text.x = element_text(size = 7)) +
+  labs(title = "MICE dataset")
 
 p_og <- df %>% 
   pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
   filter(gini != 1000) %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot()  +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(size = 7)) +
   labs(title = "Original dataset")
 
-p_complete/p_og
+gridExtra::grid.arrange(p_complete,p_og, nrow=1)
 ```
 
-After filling in the missing values with mice algorithm, we can see that the mean of the dataset actually hasn't changed much, this is because the procedure we have used is called predictive mean matching (PMM). However, the issue with outliers has clearly improved. For the year 1918 and 1958, there were 2 outliers in the original dataset, and now are reduced to 1 after filling in the missing values. 
+However, the issue with outliers has clearly improved. For the year 1918 and 1958, there were 2 outliers in the original dataset, and now are reduced to 1 after filling in the missing values. 
 
-The second method we have tried is to use the package Amelia which impute the missing values probabilistically. This method conducts multiple imputation. It assumes the data is multivariate normal distribution, and it imputes m values for each missing values creating m completed datasets, then analyze each of m completed datasets seperately and finally combine the m results by taking the average and adjust the standard error. This procedure is similar to use bootstrap to simulate by independent variable and the algorithm is called Expectation-maximization with bootstraping. This method produces unbiased estimates. However, the limitation is that the values are imputed with uncertainty. In this case, same imputed values are negative which does not comply with our scenario where gini index is between 0 to 1. 
-
-```{r}
+```{r, results='hide'}
 # Amelia
-# assumption: Multivariate Normal Distribution
-# use bootstrap to simulate by independent variable
-
-set.seed(444) # not work
+set.seed(444) 
 amelia_fit <- amelia(df_tidy, m=5, parallel = "multicore", startvals = 1)
 df_amelia <- amelia_fit$imputations[[1]]
+```
 
+The second method we have tried is to use the package Amelia which impute the missing values probabilistically. This method conducts multiple imputation. It assumes the data is multivariate normal distribution, and it imputes m values for each missing values creating m completed datasets, then analyze each of m completed datasets seperately and finally combine the m results by taking the average and adjust the standard error. This procedure is similar to use bootstrap to simulate by independent variable and the algorithm is called Expectation-maximization with bootstrapping. This method produces unbiased estimates. However, the limitation is that the values are imputed with uncertainty. In this case, same imputed values are negative which does not comply with our scenario where gini index is between 0 to 1. 
+
+```{r, results='hide'}
 p_amelia <- df_amelia %>% 
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
   ggplot(aes(x = year, y = gini)) +
   geom_boxplot() + 
+  scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
+  theme(axis.text.x = element_text(size = 7)) +
   labs(x = "", title = "Amelia dataset")
 
-p_complete/p_og
+gridExtra::grid.arrange(p_amelia,p_og, nrow=1)
 ```
 
-After filling in the missing values with amelia package, we can see that the issue with outliers is also improved. Same as mice method, the outliers in year 1918 are reduced to 1. 
-
-The third method is to use the mean or median or nearby values to fill in the missing values. The advantage of this method is easy computing, but of course it has a clear limitation which could lead to biased estimates, and it does not account for uncertainty of the imputed values.
+After filling in the missing values with amelia package, we can see that the outliers in the year 1918 are reduced to 1, but from 1928 to 1948 there were more new outliers.
 
 ```{r}
 # mean
@@ -134,14 +149,15 @@ df_mean <- data.frame(apply(df_tidy, 2, function(x){
     x[is.na(x)] = mean(x, na.rm = T); x}))
 ```
 
+The third method is to use the mean or median or nearby values to fill in the missing values. The advantage of this method is easy computing, but of course it has a clear limitation which could lead to biased estimates, and it does not account for uncertainty of the imputed values.
+
 In summary, all 3 methods can to some extend solve the problem of missing values. While the mean method could create biased estimates, the Amelia method also has uncertainty to the imputed values. Hence, we use the mice algorithm to handle the missing value and will use the filled in datasets for the following analysis.
 
-### PCA
+# Principle Component Analysis
 
 Principal components analysis finds a small number of linear combinations of the original variables that explain a large proportion of overall variation in the data. Since the variables in the dataset under investigation are measured in the same units, we don't need to standardise the data. 
 
 ```{r}
-# completeData for MICE, df_amelia for Amelia, df_mean for mean
 completeData %>% 
   prcomp() -> pcaout
 summary(pcaout) 
@@ -163,6 +179,7 @@ as_tibble(pcaout$rotation) %>%
                  c(-1/sqrt(nrow(pcaout$rotation)),
                    1/sqrt(nrow(pcaout$rotation))),
                colour="red") +
+    scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
     theme(axis.text.x = element_text(angle = 90, 
                                      vjust = 0.5, 
                                      hjust=1)) +
@@ -179,6 +196,7 @@ as_tibble(pcaout$rotation) %>%
                  c(-1/sqrt(nrow(pcaout$rotation)),
                    1/sqrt(nrow(pcaout$rotation))),
                colour="red") +
+    scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
     theme(axis.text.x = element_text(angle = 90, 
                                      vjust = 0.5, 
                                      hjust=1)) +
@@ -187,20 +205,26 @@ as_tibble(pcaout$rotation) %>%
 
 By visualizing the loading plots, we could identify the variable importance to each principal components. While the red lines represents the confidence interval, variables that exceed the red lines are significantly different from zero, which means having more contribution to the principal components. We can see that year 1918,1928 and 1938 are more influential to PC1, while year 1988,1998,2008 and 2018 are more influential to PC2.
 
-A scree plot, on the other hand, is a diagnostic tool to check whether PCA works well on the data. PC1 captures the most variation, PC2 — the second most, and so on, and each of them contributes some information of the data. Here we can see that PC1 and PC2 have captured most of the variation. 
-
 ```{r}
 # number of PCs
-screeplot(pcaout,type = 'l')  
+screeplot(pcaout,type = 'l')
+```
 
+A scree plot, on the other hand, is a diagnostic tool to check whether PCA works well on the data. PC1 captures the most variation, PC2 — the second most, and so on, and each of them contributes some information of the data. Here we can see that PC1 and PC2 have captured most of the variation.
+
+```{r, fig.width=8, fig.height=8}
 # correlation
 biplot(pcaout,scale=0, cex=0.7)
+```
 
+By selecting two principal components we are able to visualize the data using a biplot. The first biplot shows the correlation among variables. We can see year 1928, 1918 and 1938 are positively correlated. One possible explanation could be due to the World War 1 and 2 during that period of time. The rest of the variables are positively correlated.
+
+```{r, fig.width=8, fig.height=8}
 # distance
 biplot(pcaout, cex=0.7)
 ```
 
-By selecting two principal components we are able to visualize the data using a biplot. The first biplot shows the correlation among variables. We can see year 1928, 1918 and 1938 are positively correlated. One possible explanation could be due to the World War 1 and 2 during that period of time. The rest of the variables are positively correlated. The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side of the plot, Delaware, New York and Florida are obviously different from the others.
+The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side of the plot, Delaware, New York and Florida are obviously different from the others.
 
 
 # Multidimensional Scaling
@@ -282,4 +306,10 @@ adjustedRandIndex(memb_eu,memb_man)
 ```
 
 The accordance rate is 0.64 so the 2 distance somewhat agrees on the clustering of the states
+
+# Limitation
+
+- **Data:** the obvious limitation of this data is the null values, although using many different ways to compare and finally choosing the Predictive Mean Matching from the MICE package to reassign, it is also small biased from the actual situation.
+- **PCA:** one limitation is the low interpretability of PCA, although the first two PCs have explained 73% of the total variance, it is difficult to generalize what the new index specifically means. On the other hand, PCA is sensitive to the scale of the features and not robust against outliers, so we tried a variety of NA reassignment methods to minimize the bias from the data.
+
 
