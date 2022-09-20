@@ -18,6 +18,9 @@ Inequality data has eleven variables, representing 52 different states of the U.
 ```{r}
 library(tidyverse)
 library(MASS)
+library(patchwork)
+library(mice)
+library(Amelia)
 ```
 
 
@@ -35,7 +38,7 @@ There are a few anomalies such as 2 NA values for all years from 1918 to 1958 wi
 df %>% pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
   filter(gini != 1000) %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot() 
+  geom_boxplot()
 ```
 
 We can see from the box plot that the variance of gini index, signifies by the interquartile range, between states was higher for the first 2 periods, 1918 and 1928, and then gradually reduced, reaching lowest variance in 1968 but then started to slightly increase again over the next periods. We can see that quite a few periods there are outliers such as in the years of 1918, 1928, 1938, 1958, 1968, 1988 and 1998. However, only the year 1938 has an extreme value, which is when the outliers is 3*IQR greater than the 1st interquartile. We can see all the outliers below
@@ -61,6 +64,10 @@ df_tidy <- df %>%
   column_to_rownames('State')
 ```
 
+As addressed by the previous analysis, there are a substantial number of missing values in the dataset. In this section, we have performed 3 different ways to handle those missing values. 
+
+First, we have used the MICE (Multiple Imputation by Chained Equations) algorithm. This is a robust, informative method of dealing with missing data in the dataset. The procedure imputes missing data in a dataset through an iterative series of predictive models. In each iteration, each specified variable in the dataset is imputed using the other variables in the dataset. These iterations should be run until it appears that convergence has been met. 
+
 ```{r}
 # mice: pmm
 # the default assumption of pmm is missing at random
@@ -75,18 +82,25 @@ completeData <- complete(imputedData,2)
 mean(completeData$X1918)
 mean(df_tidy$X1918, na.rm = T)
 
-completeData %>% 
+
+p_complete <- completeData %>% 
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
   ggplot(aes(x = year, y = gini)) +
-  geom_boxplot() 
+  geom_boxplot() + labs(x = "")
 
-df %>% 
+p_og <- df %>% 
   pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
   filter(gini != 1000) %>% 
   ggplot(aes(x = year, y = gini)) +
   geom_boxplot() 
+
+p_complete/p_og
 ```
+
+After filling in the missing values with mice algorithm, we can see that the mean of the dataset actually hasn't changed much, this is because the procedure we have used is called predictive mean matching (PMM). However, the issue with outliers has clearly improved. For the year 1918 and 1958, there were 2 outliers in the original dataset, and now are reduced to 1 after filling in the missing values. 
+
+The second method we have tried is to use the package Amelia which impute the missing values probabilistically. This method conducts multiple imputation. It assumes the data is multivariate normal distribution, and it imputes m values for each missing values creating m completed datasets, then analyze each of m completed datasets seperately and finally combine the m results by taking the average and adjust the standard error. This procedure is similar to use bootstrap to simulate by independent variable and the algorithm is called Expectation-maximization with bootstraping. This method produces unbiased estimates. However, the limitation is that the values are imputed with uncertainty. In this case, same imputed values are negative which does not comply with our scenario where gini index is between 0 to 1. 
 
 ```{r}
 # Amelia
@@ -96,7 +110,19 @@ df %>%
 set.seed(444) # not work
 amelia_fit <- amelia(df_tidy, m=5, parallel = "multicore", startvals = 1)
 df_amelia <- amelia_fit$imputations[[1]]
+
+p_amelia <- df_amelia %>% 
+  rownames_to_column(var = "state") %>% 
+  pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
+  ggplot(aes(x = year, y = gini)) +
+  geom_boxplot() + labs(x = "")
+
+p_complete/p_og
 ```
+
+After filling in the missing values with amelia package, we can see that the issue with outliers is also improved. Same as mice method, the outliers in year 1918 are reduced to 1. 
+
+The third method is to use the mean or median or nearby values to fill in the missing values. The advantage of this method is easy computing, but of course it has a clear limitation which could lead to biased estimates, and it does not account for uncertainty of the imputed values.
 
 ```{r}
 # mean
@@ -104,15 +130,21 @@ df_mean <- data.frame(apply(df_tidy, 2, function(x){
     x[is.na(x)] = mean(x, na.rm = T); x}))
 ```
 
+In summary, all 3 methods can to some extend solve the problem of missing values. While the mean method could create biased estimates, the Amelia method also has uncertainty to the imputed values. Hence, we use the mice algorithm to handle the missing value and will use the filled in datasets for the following analysis.
+
 ### PCA
+
+Principal components analysis finds a small number of linear combinations of the original variables that explain a large proportion of overall variation in the data. Since the variables in the dataset under investigation are measured in the same units, we don't need to standardise the data. 
 
 ```{r}
 # completeData for MICE, df_amelia for Amelia, df_mean for mean
 completeData %>% 
   prcomp() -> pcaout
-
 summary(pcaout) 
 ```
+
+From the summary report, we can see that there are 11 principal components are obtained. Each of these explains a percentage of the total variation in the dataset. That is to say: PC1 explains 58% of the total variance, while PC2 explains 15% of the total variance, as just PC1 and PC2 can explain 73% of the total variance.
+
 
 ```{r}
 # loadings
@@ -149,6 +181,10 @@ as_tibble(pcaout$rotation) %>%
   xlab("Predictors") + ylab("PC2") 
 ```
 
+By visualizing the loading plots, we could identify the variable importance to each principal components. While the red lines represents the confidence interval, variables that exceed the red lines are significantly different from zero, which means having more contribution to the principal components. We can see that year 1918,1928 and 1938 are more influential to PC1, while year 1988,1998,2008 and 2018 are more influential to PC2.
+
+A scree plot, on the other hand, is a diagnostic tool to check whether PCA works well on the data. PC1 captures the most variation, PC2 — the second most, and so on, and each of them contributes some information of the data. Here we can see that PC1 and PC2 have captured most of the variation. 
+
 ```{r}
 # number of PCs
 screeplot(pcaout,type = 'l')  
@@ -159,6 +195,9 @@ biplot(pcaout,scale=0, cex=0.7)
 # distance
 biplot(pcaout, cex=0.7)
 ```
+
+By selecting two principal components we are able to visualize the data using a biplot. The first biplot shows the correlation among variables. We can see year 1928, 1918 and 1938 are positively correlated. One possible explanation could be due to the World War 1 and 2 during that period of time. The rest of the variables are positively correlated. The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side of the plot, Delaware, New York and Florida are obviously different from the others.
+
 
 # Multidimensional Scaling
 
