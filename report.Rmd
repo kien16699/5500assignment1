@@ -99,7 +99,7 @@ imputedData <- mice(df_tidy, m=5, maxit = 50, method = 'pmm', seed = 500)
 completeData <- complete(imputedData,2)
 ```
 
-First, we have used the MICE (Multiple Imputation by Chained Equations) algorithm. This is a robust, informative method of dealing with missing data in the dataset. The procedure imputes missing data in a dataset through an iterative series of predictive models. In each iteration, each specified variable in the dataset is imputed using the other variables in the dataset. These iterations should be run until it appears that convergence has been met. 
+First, we have used the MICE (Multiple Imputation by Chained Equations) algorithm. This is a robust, informative method of dealing with missing data. The procedure imputes missing data through an iterative series of predictive models. In each iteration, each specified variable is imputed using the other variables in the dataset. 
 
 ```{r}
 tibble(raw_1918 = mean(df_tidy$X.1918, na.rm = T),
@@ -131,7 +131,7 @@ p_og <- df %>%
 gridExtra::grid.arrange(p_complete,p_og, nrow=1)
 ```
 
-However, the issue with outliers has clearly improved. For the year 1918 and 1958, there were 2 outliers in the original dataset, and now are reduced to 1 after filling in the missing values. 
+However, the issue with outliers has clearly improved. For the year 1918 and 1958, there were 2 outliers in the original dataset, and now are reduced to 1 after using mice. 
 
 ```{r, results='hide'}
 # Amelia
@@ -140,7 +140,7 @@ amelia_fit <- amelia(df_tidy, m=5, parallel = "multicore", startvals = 1)
 df_amelia <- amelia_fit$imputations[[1]]
 ```
 
-The second method we have tried is to use the package Amelia which impute the missing values probabilistically. This method conducts multiple imputation. It assumes the data is multivariate normal distribution, and it imputes m values for each missing values creating m completed datasets, then analyze each of m completed datasets seperately and finally combine the m results by taking the average and adjust the standard error. This procedure is similar to use bootstrap to simulate by independent variable and the algorithm is called Expectation-maximization with bootstrapping. This method produces unbiased estimates. However, the limitation is that the values are imputed with uncertainty. In this case, same imputed values are negative which does not comply with our scenario where gini index is between 0 to 1. 
+The second method we have tried is to use the package Amelia which impute the missing values probabilistically. This method conducts multiple imputation. It assumes the data is multivariate normal distribution, and it imputes m values for each missing values creating m completed datasets, then analyze each of m completed datasets separately and finally combine the m results by taking the average and adjust the standard error. This procedure is similar to use bootstrap to simulate by independent variable and the algorithm is called Expectation-maximization with bootstrapping. This method produces unbiased estimates. However, the limitation is that the values are imputed with uncertainty. In this case, same imputed values are negative which does not comply with our scenario where gini index is between 0 to 1. 
 
 ```{r, fig.cap = "The summary comparing the new Amelia dataset and the Original dataset", fig.pos = "H"}
 p_amelia <- df_amelia %>% 
@@ -155,7 +155,7 @@ p_amelia <- df_amelia %>%
 gridExtra::grid.arrange(p_amelia,p_og, nrow=1)
 ```
 
-After filling in the missing values with amelia package, we can see that the outliers in the year 1918 are reduced to 1, but from 1928 to 1948 there were more new outliers.
+Amelia method somehow deal with the outliers as well, in the year 1918 are reduced to 1, but from 1928 to 1948 there were more new outliers.
 
 ```{r}
 # mean
@@ -163,15 +163,15 @@ df_mean <- data.frame(apply(df_tidy, 2, function(x){
     x[is.na(x)] = mean(x, na.rm = T); x}))
 ```
 
-The third method is to use the mean or median or nearby values to fill in the missing values. The advantage of this method is easy computing, but of course it has a clear limitation which could lead to biased estimates, and it does not account for uncertainty of the imputed values.
+The third method is to use the mean to fill in the missing values. Easy computing is the advantage, but it has limitation which could lead to biased estimates, and it doesn't account for uncertainty of the imputed values.
 
-In summary, all 3 methods can to some extend solve the problem of missing values. While the mean method could create biased estimates, the Amelia method also has uncertainty to the imputed values. Hence, we use the mice algorithm to handle the missing value and will use the filled in datasets for the following analysis.
+In summary, all 3 methods to some extend handle missing values. While the mean method could create biased estimates, the Amelia method has uncertainty to the imputed values. Hence, we use the mice algorithm to handle the missing value and will use the mice filled-in datasets for the following analysis.
 
 \clearpage
 
 # Principle Component Analysis
 
-Principal components analysis finds a small number of linear combinations of the original variables that explain a large proportion of overall variation in the data. Since the variables in the dataset under investigation are measured in the same units, we don't need to standardise the data. 
+Principal components analysis finds a small number of linear combinations of the original variables that explain a large proportion of overall variation in the data. Since the variables under investigation are measured in the same units, we don't need to standardise the data. 
 
 ```{r, tidy = TRUE}
 completeData %>% 
@@ -181,8 +181,7 @@ summary(pcaout)$importance %>%
   kable_styling(latex_options = c("scale_down", "hold_position"))
 ```
 
-From the summary report, we can see that there are 11 principal components are obtained. Each of these explains a percentage of the total variation in the dataset. That is to say: PC1 explains 58% of the total variance, while PC2 explains 15% of the total variance, as just PC1 and PC2 can explain 73% of the total variance.
-
+11 principal components are obtained. Each of these explains a percentage of the total variation. That is to say: PC1 explains 58% of the total variance, while PC2 explains 15% of the total variance, as just PC1 and PC2 can explain 73% of the total variance.
 
 ```{r, fig.cap = "The plot show the loding score of the first principle components", fig.pos = "H"}
 # loadings
@@ -223,7 +222,7 @@ as_tibble(pcaout$rotation) %>%
   xlab("Predictors") + ylab("PC2") 
 ```
 
-By visualizing the loading plots, we could identify the variable importance to each principal components. While the red lines represents the confidence interval, variables that exceed the red lines are significantly different from zero, which means having more contribution to the principal components. We can see that year 1918,1928 and 1938 are more influential to PC1, while year 1988,1998,2008 and 2018 are more influential to PC2.
+By visualizing the loading plots, we could identify the variable importance to each principal components. While the red lines represents the confidence interval, variables that exceed the red lines are significantly different from zero, which means having more contribution to the principal components. Year 1918,1928 and 1938 are more influential to PC1, while year 1988,1998,2008 and 2018 are more influential to PC2.
 
 ```{r, fig.cap = "The scree plot showing the captured variance for each component"}
 # number of PCs
@@ -232,14 +231,14 @@ screeplot(pcaout,type = 'l')
 
 \clearpage
 
-A scree plot, on the other hand, is a diagnostic tool to check whether PCA works well on the data. PC1 captures the most variation, PC2 — the second most, and so on, and each of them contributes some information of the data. Here we can see that PC1 and PC2 have captured most of the variation.
+A scree plot is a diagnostic tool to check whether PCA works well.Here PC1 and PC2 have captured most of the variation. The proportion explained by PCs are significantly decreased after PC2, so selecting 2 PC is reasonable.
 
 ```{r, fig.width=8, fig.height=8, fig.cap = "Biplot based on principal components showing the correlation among variables"}
 # correlation
 biplot(pcaout,scale=0, cex=0.7)
 ```
 
-By selecting two principal components we are able to visualize the data using a biplot. The first biplot shows the correlation among variables. We can see year 1928, 1918 and 1938 are positively correlated. One possible explanation could be due to the World War 1 and 2 during that period of time. The rest of the variables are positively correlated.
+By selecting PCs, we visualize the data using biplots. The first biplot shows the correlation among variables. Year 1928, 1918 and 1938 are positively correlated. One possible explanation could be due to the World War 1 and 2 during that period of time. The rest of the variables are positively correlated.
 
 \clearpage
 
@@ -248,7 +247,7 @@ By selecting two principal components we are able to visualize the data using a 
 biplot(pcaout, cex=0.7)
 ```
 
-The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side of the plot, Delaware, New York and Florida are obviously different from the others. The reason for this could be the minimum wage in Delaware is low, while corporations are paying lesser taxes. While some research indicates that wage inequality tends to come from where the demand for skill is the highest, what this means is that people with higher skills are more in demand, while the need for lower and middle-skilled workers declines.
+The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side, Delaware, New York and Florida are obviously different from the others. The reason for this could be the minimum wage in Delaware is low, while corporations are paying lesser taxes. While some research indicates that wage inequality tends to happen when the demand for skill is the highest, which means that people with higher skills are more in demand, while the need for lower-and-middle-skilled workers declines.
 
 
 # Multidimensional Scaling
