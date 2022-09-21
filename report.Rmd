@@ -261,40 +261,42 @@ The *GOF* tells us how good the fit is. The numbers are the same for both measur
 
 
 ```{r}
-df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
-  filter(`1968` != 1000) %>% 
-  column_to_rownames(var = "State") %>% 
+# df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
+#   filter(`1968` != 1000) %>% 
+#   column_to_rownames(var = "State") 
   # pivot_wider(names_from = year,
   #             values_from = gini) %>% 
+completeData %>% 
     dist(method = 'euclidean')->d #compute distance matrix 
 hclust(d,method='ward.D2')->hcl
 hcl %>%  plot(cex = 0.6)
-hcl %>% rect.hclust(k = 6)
+hcl %>% rect.hclust(k = 4)
 ```
 
-From the dendogram above we can see that using the Ward clustering method, we can cut the tree into either 4 or 6 clusters for stable solutions. Because 3 and 5 clusters are not stable and can change over a short range of tolerance, while 1 and 2 clusters not a good choice as there are room to form better defined clusters.
+From the dendogram above we can see that using the Ward clustering method, we can cut the tree into 4 clusters for stable solutions. Because 3 clusters is not stable and can change over a short range of tolerance, while 5 and above will not include the cluster with Delaware state. 1 and 2 clusters not a good choice as there are room to form better defined clusters.
 
-What's more interesting to see is that we can identify there is a small cluster with only Delaware and Alaska. As we have identified Delaware as the extreme outlier before in the boxplot, we can expect this cluster to contains only outliers. If we go back to the box plot and identify the second most outlying point in Gini index, which is in the year 1988, we can see that the state is indeed Alaska as below
+What's more interesting to see is that, aside from Delaware, we can identify another less smaller outlier which is Alaska. If we go back to the box plot and identify the second most outlying point in Gini index, which is in the year 1988, we can see that the state is indeed Alaska as below
 
 ```{r}
 boxplot.stats(df$`1988`)$out -> outliers88
 df[which(df$`1988` %in% c(outliers88)),]
 ```
 
-Using other method of clustering, such as average or centroid linkage
+If we use manhattan distance instead to cluster the states, the stable solution would also be 4, similar to that as in the case of euclidean distance. More interestingly is we can identify New York and Florida which are previously within the same cluster, if we decided the number of cluster to be higher, and is a potential outlier as compared to the majority of other clusters. These only happens when Euclidean distance is used but using Manhattan distance in clustering, they are not within the same cluster anymore nor do they look like potential outliers
 
 ```{r}
-df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
-  filter(`1968` != 1000) %>% 
-  column_to_rownames(var = "State") %>% 
+# df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
+#   filter(`1968` != 1000) %>% 
+#   column_to_rownames(var = "State") %>% 
   # pivot_wider(names_from = year,
   #             values_from = gini) %>% 
-    dist(method = 'manhattan')->d #compute distance matrix 
-hclust(d,method='ward.D2')->hclman
+completeData %>% 
+    dist(method = 'manhattan')->dman #compute distance matrix 
+hclust(dman,method='ward.D2')->hclman
 hclman %>%  plot(cex = 0.6)
+hclman %>% rect.hclust(k = 4)
 ```
 
-If we use manhattan distance instead to cluster the states, the stable solution would be 4 or 7 clusters instead of 4 or 6 as in the case of euclidean distance. More interesting is if the cluster was 7, we can identify another small cluster consisting of only the states of New York and Florida. 
 
 To see if the members of the state are different or not as compared to when euclidean distance is used, we can assume the cluster is 4 and use Rand index:
 
@@ -305,7 +307,7 @@ hcl %>% cutree(k = 4) -> memb_eu
 adjustedRandIndex(memb_eu,memb_man)
 ```
 
-The accordance rate is 0.64 so the 2 distance somewhat agrees on the clustering of the states
+It's interesting to see how when different distance is used, the number of clusters are still the same but the members of each cluster are all difference, as the adjusted Rand Index is only 0.2
 
 # Limitation
 
