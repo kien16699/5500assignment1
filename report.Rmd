@@ -5,10 +5,13 @@ date: "`r Sys.Date()`"
 output: 
   pdf_document:
     df_print: kable
+    fig_caption: yes
+header-includes:
+  \usepackage{float}
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center",fig.width = 6, fig.height = 3.5)
 ```
 
 # Data Description
@@ -24,6 +27,7 @@ library(naniar)
 library(mice)
 library(Amelia)
 library(gghighlight)
+library(kableExtra)
 ```
 
 
@@ -33,19 +37,23 @@ df <- read_csv("Inequality_data.csv")
 
 ### Overview of the raw data
 
-```{r}
+```{r, fig.cap = "Bar plots showing the missing values", fig.pos = "H"}
 gg_miss_upset(df)
 ```
 
 There are a few anomalies such as 2 NA values for all years from 1918 to 1958 with the exception of year 1948 having 20 NA values.
 
+\clearpage
+
 ```{r}
-summary(df)
+summary(df) %>%
+  kable(caption = "Summary for each variables of the dataset") %>%
+  kable_styling(latex_options = c("scale_down", "hold_position"))
 ```
 
 Additionally the highest Gini index for the year 1968 is 1000, which is definite a mistake considering the range of Gini index value is between 0 and 1.
 
-```{r}
+```{r, fig.cap = "The box plot of original variables", fig.pos = "H"}
 df %>% pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
   filter(gini != 1000) %>% 
   ggplot(aes(x = year, y = gini)) +
@@ -56,10 +64,14 @@ We can see from the box plot that the variance of gini index, signifies by the i
 
 ```{r}
 boxplot.stats(df$`1938`)$out -> outliers
-df[which(df$`1938` %in% c(outliers)),]
+df[which(df$`1938` %in% c(outliers)),] %>%
+  kable(caption = "The summary table of the potential outlier states") %>%
+  kable_styling(latex_options = c("scale_down", "hold_position"))
 ```
 
 The extreme value for the year 1938 is Delaware, with Gini index at 0.674. From the box plot we can also see that the largest Gini index across the whole data set comes from the year 1928, and from the table above, we can see that the point is also Delaware, with Gini at 0.747, this means that during the period 1928 to 1938, the state of Delaware had very wide income gap.
+
+\clearpage
 
 In terms of the distribution of gini index across the years, we can see that the data is quite normally distributed. We can see that the only period which is visibly positively skewed is the year 1998, where the mean is very close to the 1st quantile.
 
@@ -91,12 +103,14 @@ First, we have used the MICE (Multiple Imputation by Chained Equations) algorith
 
 ```{r}
 tibble(raw_1918 = mean(df_tidy$X.1918, na.rm = T),
-       mice_1918 = mean(completeData$X.1918)) 
+       mice_1918 = mean(completeData$X.1918)) %>%
+  kable(caption = "The table showing the mean after filling the missing values") %>%
+  kable_styling(latex_options = "hold_position")
 ```
 
 After filling in the missing values with mice algorithm, we can see that the mean of the dataset actually hasn't changed much, this is because the procedure we have used is called predictive mean matching (PMM). 
 
-```{r}
+```{r, fig.cap = "The summary comparing the new MICE dataset and the Original dataset", fig.pos = "H"}
 p_complete <- completeData %>% 
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
@@ -128,7 +142,7 @@ df_amelia <- amelia_fit$imputations[[1]]
 
 The second method we have tried is to use the package Amelia which impute the missing values probabilistically. This method conducts multiple imputation. It assumes the data is multivariate normal distribution, and it imputes m values for each missing values creating m completed datasets, then analyze each of m completed datasets seperately and finally combine the m results by taking the average and adjust the standard error. This procedure is similar to use bootstrap to simulate by independent variable and the algorithm is called Expectation-maximization with bootstrapping. This method produces unbiased estimates. However, the limitation is that the values are imputed with uncertainty. In this case, same imputed values are negative which does not comply with our scenario where gini index is between 0 to 1. 
 
-```{r, results='hide'}
+```{r, fig.cap = "The summary comparing the new Amelia dataset and the Original dataset", fig.pos = "H"}
 p_amelia <- df_amelia %>% 
   rownames_to_column(var = "state") %>% 
   pivot_longer(cols = -state, names_to = "year", values_to = "gini") %>% 
@@ -153,20 +167,24 @@ The third method is to use the mean or median or nearby values to fill in the mi
 
 In summary, all 3 methods can to some extend solve the problem of missing values. While the mean method could create biased estimates, the Amelia method also has uncertainty to the imputed values. Hence, we use the mice algorithm to handle the missing value and will use the filled in datasets for the following analysis.
 
+\clearpage
+
 # Principle Component Analysis
 
 Principal components analysis finds a small number of linear combinations of the original variables that explain a large proportion of overall variation in the data. Since the variables in the dataset under investigation are measured in the same units, we don't need to standardise the data. 
 
-```{r}
+```{r, tidy = TRUE}
 completeData %>% 
   prcomp() -> pcaout
-summary(pcaout) 
+summary(pcaout)$importance %>%
+  kable(caption = "Table summary for the importance of each principle components") %>%
+  kable_styling(latex_options = c("scale_down", "hold_position"))
 ```
 
 From the summary report, we can see that there are 11 principal components are obtained. Each of these explains a percentage of the total variation in the dataset. That is to say: PC1 explains 58% of the total variance, while PC2 explains 15% of the total variance, as just PC1 and PC2 can explain 73% of the total variance.
 
 
-```{r}
+```{r, fig.cap = "The plot show the loding score of the first principle components", fig.pos = "H"}
 # loadings
 as_tibble(pcaout$rotation) %>% 
   mutate(indx = 1:nrow(pcaout$rotation), 
@@ -184,7 +202,9 @@ as_tibble(pcaout$rotation) %>%
                                      vjust = 0.5, 
                                      hjust=1)) +
   xlab("Predictors") + ylab("PC1") 
+```
 
+```{r, fig.cap = "The plot show the loding score of the second principle components", fig.pos = "H"}
 as_tibble(pcaout$rotation) %>% 
   mutate(indx = 1:nrow(pcaout$rotation), 
          ymin= rep(0, nrow(pcaout$rotation))) %>% 
@@ -205,31 +225,35 @@ as_tibble(pcaout$rotation) %>%
 
 By visualizing the loading plots, we could identify the variable importance to each principal components. While the red lines represents the confidence interval, variables that exceed the red lines are significantly different from zero, which means having more contribution to the principal components. We can see that year 1918,1928 and 1938 are more influential to PC1, while year 1988,1998,2008 and 2018 are more influential to PC2.
 
-```{r}
+```{r, fig.cap = "The scree plot showing the captured variance for each component"}
 # number of PCs
 screeplot(pcaout,type = 'l')
 ```
 
+\clearpage
+
 A scree plot, on the other hand, is a diagnostic tool to check whether PCA works well on the data. PC1 captures the most variation, PC2 — the second most, and so on, and each of them contributes some information of the data. Here we can see that PC1 and PC2 have captured most of the variation.
 
-```{r, fig.width=8, fig.height=8}
+```{r, fig.width=8, fig.height=8, fig.cap = "Biplot based on principal components showing the correlation among variables"}
 # correlation
 biplot(pcaout,scale=0, cex=0.7)
 ```
 
 By selecting two principal components we are able to visualize the data using a biplot. The first biplot shows the correlation among variables. We can see year 1928, 1918 and 1938 are positively correlated. One possible explanation could be due to the World War 1 and 2 during that period of time. The rest of the variables are positively correlated.
 
-```{r, fig.width=8, fig.height=8}
+\clearpage
+
+```{r, fig.width=8, fig.height=8, fig.cap = "Biplot based on principal components showing the distance between states"}
 # distance
 biplot(pcaout, cex=0.7)
 ```
 
-The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side of the plot, Delaware, New York and Florida are obviously different from the others.
+The second biplot implies the distance. While 1928 contributes the most to the PC1, 2018 contributes the most to the PC2. Also, the closer distance between states, the more similar they are. While most observations are clustered in the top right side of the plot, Delaware, New York and Florida are obviously different from the others. The reason for this could be the minimum wage in Delaware is low, while corporations are paying lesser taxes. While some research indicates that wage inequality tends to come from where the demand for skill is the highest, what this means is that people with higher skills are more in demand, while the need for lower and middle-skilled workers declines.
 
 
 # Multidimensional Scaling
 
-```{r}
+```{r, fig.cap = "The plot showing the low dimensional representation of the dataset using the classical multidimensional scaling", fig.pos = "H"}
 dd <- completeData %>%
   dist(method = "euclidean")
 
@@ -251,7 +275,9 @@ cmds_point %>%
 Using the classical Multidimensional Scaling, it finds a low dimensional representation of the dataset by minimizing strain. From the plot above, we can see the potential three outliers of the dataset; Delaware, New York, and Florida. This result is the same as what we have observed in the PCA. Also, the states that are closer together, the closer they are, as this plot represents the similarity between states.
 
 ```{r}
-cmds$GOF
+data.frame(cmds$GOF, row.names = c("GF1", "GF2")) %>%
+  kable(caption = "The table summary of the goodness of fit from the classical multidimensional scaling") %>%
+  kable_styling(latex_options = "hold_position")
 ```
 
 The *GOF* tells us how good the fit is. The numbers are the same for both measures. It is because we use Euclidean distances, which will always give positive eigenvalues, and since the first measure use $|\lambda_i|$ and the second measure uses $max(0, \lambda_i)$. Therefore when using the Euclidean distance, it will give the same results. With the goodness of fit measures being quite high, we can believe that the solution is an accurate representation.
@@ -260,7 +286,7 @@ The *GOF* tells us how good the fit is. The numbers are the same for both measur
 # Cluster Analysis
 
 
-```{r}
+```{r, fig.cap = "The dendogram showing the cluster solution using Euclidean distance", fig.pos = "H"}
 # df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
 #   filter(`1968` != 1000) %>% 
 #   column_to_rownames(var = "State") 
@@ -279,12 +305,14 @@ What's more interesting to see is that, aside from Delaware, we can identify ano
 
 ```{r}
 boxplot.stats(df$`1988`)$out -> outliers88
-df[which(df$`1988` %in% c(outliers88)),]
+df[which(df$`1988` %in% c(outliers88)),] %>%
+  kable(caption = "The summary of the potential outlier Alaska") %>%
+  kable_styling(latex_options = c("scale_down", "hold_position"))
 ```
 
 If we use manhattan distance instead to cluster the states, the stable solution would also be 4, similar to that as in the case of euclidean distance. More interestingly is we can identify New York and Florida which are previously within the same cluster, if we decided the number of cluster to be higher, and is a potential outlier as compared to the majority of other clusters. These only happens when Euclidean distance is used but using Manhattan distance in clustering, they are not within the same cluster anymore nor do they look like potential outliers
 
-```{r}
+```{r, fig.cap = "The dendogram showing the cluster solution using Manhattan distance", fig.pos = "H"}
 # df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
 #   filter(`1968` != 1000) %>% 
 #   column_to_rownames(var = "State") %>% 
@@ -304,7 +332,13 @@ To see if the members of the state are different or not as compared to when eucl
 library(mclust) 
 hclman %>% cutree(k = 4) -> memb_man
 hcl %>% cutree(k = 4) -> memb_eu
-adjustedRandIndex(memb_eu,memb_man)
+
+rand <- data.frame(adjustedRandIndex(memb_eu,memb_man))
+colnames(rand) <- "Rand index"
+
+rand %>%
+  kable(caption = "Table showing the adjusted rand index") %>%
+  kable_styling(latex_options = "hold_position")
 ```
 
 It's interesting to see how when different distance is used, the number of clusters are still the same but the members of each cluster are all difference, as the adjusted Rand Index is only 0.2
