@@ -310,7 +310,7 @@ df[which(df$`1988` %in% c(outliers88)),] %>%
   kable_styling(latex_options = c("scale_down", "hold_position"))
 ```
 
-If we use manhattan distance instead to cluster the states, the stable solution would also be 4, similar to that as in the case of euclidean distance. More interestingly is we can identify New York and Florida which are previously within the same cluster, if we decided the number of cluster to be higher, and is a potential outlier as compared to the majority of other clusters. These only happens when Euclidean distance is used but using Manhattan distance in clustering, they are not within the same cluster anymore nor do they look like potential outliers
+If we use manhattan distance instead to cluster the states, the stable solution would also be 4, similar to that as in the case of euclidean distance. 
 
 ```{r, fig.cap = "The dendogram showing the cluster solution using Manhattan distance", fig.pos = "H"}
 # df %>% #pivot_longer(cols = -State, names_to = "year", values_to = "gini") %>% 
