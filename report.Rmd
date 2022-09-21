@@ -150,7 +150,7 @@ p_amelia <- df_amelia %>%
   geom_boxplot() + 
   scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
   theme(axis.text.x = element_text(size = 7)) +
-  labs(x = "", title = "Amelia dataset")
+  labs(title = "Amelia dataset")
 
 gridExtra::grid.arrange(p_amelia,p_og, nrow=1)
 ```
@@ -176,6 +176,7 @@ Principal components analysis finds a small number of linear combinations of the
 ```{r, tidy = TRUE}
 completeData %>% 
   prcomp() -> pcaout
+rownames(pcaout$rotation) <- as.character(seq(1918,2018,10))
 summary(pcaout)$importance %>%
   kable(caption = "Table summary for the importance of each principle components") %>%
   kable_styling(latex_options = c("scale_down", "hold_position"))
@@ -196,7 +197,6 @@ as_tibble(pcaout$rotation) %>%
                  c(-1/sqrt(nrow(pcaout$rotation)),
                    1/sqrt(nrow(pcaout$rotation))),
                colour="red") +
-    scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
     theme(axis.text.x = element_text(angle = 90, 
                                      vjust = 0.5, 
                                      hjust=1)) +
@@ -215,7 +215,6 @@ as_tibble(pcaout$rotation) %>%
                  c(-1/sqrt(nrow(pcaout$rotation)),
                    1/sqrt(nrow(pcaout$rotation))),
                colour="red") +
-    scale_x_discrete(labels = as.character(seq(1918, 2018, 10))) +
     theme(axis.text.x = element_text(angle = 90, 
                                      vjust = 0.5, 
                                      hjust=1)) +
